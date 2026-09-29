@@ -1,38 +1,47 @@
 # DesktopDots
 
-GNOME-artige Anzeige der virtuellen Desktops ganz links in der Windows-11-Taskleiste.
+GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar.
 
-- **Punkt gefüllt**: auf dem Desktop ist mindestens ein Fenster offen
-- **Punkt leer**: Desktop ist leer
-- **Pille**: aktiver Desktop (mit kurzer Animation beim Wechsel)
+- **Filled dot**: at least one window is open on that desktop
+- **Hollow dot**: the desktop is empty
+- **Pill**: the active desktop (with a short animation when switching)
 
-Linksklick auf einen Punkt wechselt zu diesem Desktop, Rechtsklick öffnet ein Menü (Autostart, Beenden).
+Left-click a dot to switch to that desktop. Right-click opens a menu (start with Windows, exit).
 
-## Voraussetzungen
+## Requirements
 
-- Windows 11, Taskleiste zentriert, Widgets-Button deaktiviert (sonst liegt die Anzeige darüber)
-- .NET 10 SDK zum Bauen
+- Windows 11 with a centered taskbar and the Widgets button disabled (otherwise the dots overlap it)
+- .NET 10 SDK to build
 
-## Bauen und installieren
+## Build and install
 
 ```powershell
 dotnet publish -c Release -o $HOME\Tools\DesktopDots
 & $HOME\Tools\DesktopDots\DesktopDots.exe
 ```
 
-Danach per Rechtsklick „Mit Windows starten“ aktivieren. Der Autostart zeigt auf den Pfad der gerade laufenden `.exe`, daher vorher an einen festen Ort publishen.
+Then enable "Mit Windows starten" (start with Windows) via right-click. Autostart points to the path of the running `.exe`, so publish to a fixed location first.
 
-## Funktionsweise
+## How it works
 
-- Die App hängt ein transparentes Layered-Fenster als Kindfenster in die Taskleiste (`Shell_TrayWnd`). Es bewegt sich mit ihr und ist auf allen Desktops sichtbar.
-- Desktops und aktiver Desktop kommen aus `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops`; Änderungen werden per `RegNotifyChangeKeyValue` sofort erkannt.
-- Belegte Desktops werden jede Sekunde über `EnumWindows` und die öffentliche COM-API `IVirtualDesktopManager` ermittelt.
-- Desktopwechsel per Klick simuliert `Ctrl+Win+←/→`, da es dafür keine öffentliche API gibt.
-- Nach einem Explorer-Neustart hängt sich die App automatisch neu ein.
+- The app attaches a transparent layered window as a child of the taskbar (`Shell_TrayWnd`). It moves with the taskbar and is visible on every desktop.
+- The desktop list and the active desktop are read from `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops`; changes are picked up immediately via `RegNotifyChangeKeyValue`.
+- Occupied desktops are determined once per second using `EnumWindows` and the public COM API `IVirtualDesktopManager`.
+- Clicking a dot simulates `Ctrl+Win+Left/Right`, since there is no public API for switching desktops.
+- After an Explorer restart, the app re-attaches itself automatically.
 
-Nur dokumentierte APIs, keine undokumentierten Shell-Interfaces – sollte daher Windows-Updates überstehen.
+Only documented APIs are used, no undocumented shell interfaces, so it should survive Windows updates.
 
-## Einschränkungen
+## Caveats
 
-- Nur Hauptmonitor
-- Belegung wird mit bis zu 1 s Verzögerung aktualisiert
+- **Completely untested.** This is a private tool I built for my own setup. It works on my machine, and that's all I can say.
+- **No settings.** Size, spacing, colors and position are hard-coded in `Program.cs`. The menu labels are in German.
+- **Only tested with one taskbar configuration**: centered, bottom, Widgets disabled, primary monitor only. Not tested with a left-aligned taskbar, auto-hide, secondary monitors, different scaling or third-party taskbar tweaks that move the taskbar to the top or sides.
+- Occupancy updates can lag by up to one second.
+- Switching across several desktops plays the Windows switch animation once per step.
+
+Feel free to take it, change it and redistribute it.
+
+## License
+
+[MIT](LICENSE)
