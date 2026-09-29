@@ -32,6 +32,16 @@ Then enable "Mit Windows starten" (start with Windows) via right-click. Autostar
 
 Only documented APIs are used, no undocumented shell interfaces, so it should survive Windows updates.
 
+## Performance
+
+Measured on my machine while idle:
+
+- **CPU**: ~0.5 % of one core (47 ms of CPU time per 10 s). Switching desktops runs a ~200 ms animation at ~60 fps, then goes idle again.
+- **Memory**: ~19 MB private / ~56 MB working set, mostly the .NET runtime baseline.
+- **Explorer**: no noticeable impact; the app only enumerates top-level windows once per second.
+
+Possible improvements if it ever matters: only redraw when something actually changed (it currently redraws once per second), or publish with Native AOT to reduce memory and startup time (WinForms support for this is untested).
+
 ## Caveats
 
 - **Completely untested.** This is a private tool I built for my own setup. It works on my machine, and that's all I can say.
