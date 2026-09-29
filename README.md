@@ -15,6 +15,10 @@ Left-click a dot to switch to that desktop. Right-click opens a menu (start with
 - Windows 11 with a centered taskbar and the Widgets button disabled (otherwise the dots overlap it)
 - .NET 10 SDK to build
 
+## Download
+
+Grab `DesktopDots-<version>.exe` from the [latest release](https://github.com/marco-kretz/win11-desktop-dots/releases/latest). It is self-contained, no .NET runtime needed. Put it in a fixed location before enabling autostart.
+
 ## Build and install
 
 ```powershell
