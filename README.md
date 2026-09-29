@@ -31,6 +31,10 @@ dotnet publish -c Release -o $HOME\Tools\DesktopDots
 
 Then enable "Start with Windows" via right-click. Autostart points to the path of the running `.exe`, so publish to a fixed location first.
 
+## Recommended: instant desktop switching
+
+I highly recommend the [Disable Virtual Desktop Transition](https://windhawk.net/mods/disable-virtual-desktop-transition) mod for [Windhawk](https://windhawk.net/). It disables the Windows slide animation, so switching desktops (including by clicking a dot) is basically instant.
+
 ## How it works
 
 - The app attaches a transparent layered window as a child of the taskbar (`Shell_TrayWnd`). It moves with the taskbar and is visible on every desktop.
@@ -57,7 +61,7 @@ Possible improvements if it ever matters: only redraw when something actually ch
 - **No settings.** Size, spacing, colors and position are hard-coded in `Program.cs`.
 - **Only tested with one taskbar configuration**: centered, bottom, Widgets disabled, primary monitor only. Not tested with a left-aligned taskbar, auto-hide, secondary monitors, different scaling or third-party taskbar tweaks that move the taskbar to the top or sides.
 - Occupancy updates can lag by up to one second.
-- Switching across several desktops plays the Windows switch animation once per step.
+- Switching across several desktops plays the Windows switch animation once per step (the Windhawk mod above avoids this).
 
 Feel free to take it, change it and redistribute it.
 
