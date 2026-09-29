@@ -2,6 +2,8 @@
 
 GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar.
 
+<p align="center"><img src="preview.gif" alt="DesktopDots preview"></p>
+
 - **Filled dot**: at least one window is open on that desktop
 - **Hollow dot**: the desktop is empty
 - **Pill**: the active desktop (with a short animation when switching)
