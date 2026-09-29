@@ -17,7 +17,7 @@ Left-click a dot to switch to that desktop. Right-click opens a menu (start with
 
 ## Download
 
-Grab `DesktopDots-<version>.exe` from the [latest release](https://github.com/marco-kretz/win11-desktop-dots/releases/latest). It is self-contained, no .NET runtime needed. Put it in a fixed location before enabling autostart.
+Grab `DesktopDots-<version>.exe` from the [latest release](https://github.com/marco-kretz/win11-desktop-dots/releases/latest). The .NET runtime is bundled into the exe, so no separate install is needed; that's why it's ~50 MB instead of a few hundred KB. Put it in a fixed location before enabling autostart.
 
 ## Build and install
 
