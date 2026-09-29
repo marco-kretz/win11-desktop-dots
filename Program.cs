@@ -215,7 +215,7 @@ sealed class Bar : NativeWindow
     {
         using var run = Registry.CurrentUser.OpenSubKey(RunKey, true)!;
         var menu = new ContextMenuStrip();
-        var autostart = new ToolStripMenuItem("Mit Windows starten") { Checked = run.GetValue("DesktopDots") != null };
+        var autostart = new ToolStripMenuItem("Start with Windows") { Checked = run.GetValue("DesktopDots") != null };
         autostart.Click += (_, _) =>
         {
             using var k = Registry.CurrentUser.OpenSubKey(RunKey, true)!;
@@ -223,7 +223,7 @@ sealed class Bar : NativeWindow
             else k.SetValue("DesktopDots", $"\"{Environment.ProcessPath}\"");
         };
         menu.Items.Add(autostart);
-        menu.Items.Add("Beenden", null, (_, _) => Environment.Exit(0));
+        menu.Items.Add("Exit", null, (_, _) => Environment.Exit(0));
         menu.Show(Cursor.Position);
     }
 }

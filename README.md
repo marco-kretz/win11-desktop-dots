@@ -20,7 +20,7 @@ dotnet publish -c Release -o $HOME\Tools\DesktopDots
 & $HOME\Tools\DesktopDots\DesktopDots.exe
 ```
 
-Then enable "Mit Windows starten" (start with Windows) via right-click. Autostart points to the path of the running `.exe`, so publish to a fixed location first.
+Then enable "Start with Windows" via right-click. Autostart points to the path of the running `.exe`, so publish to a fixed location first.
 
 ## How it works
 
@@ -45,7 +45,7 @@ Possible improvements if it ever matters: only redraw when something actually ch
 ## Caveats
 
 - **Completely untested.** This is a private tool I built for my own setup. It works on my machine, and that's all I can say.
-- **No settings.** Size, spacing, colors and position are hard-coded in `Program.cs`. The menu labels are in German.
+- **No settings.** Size, spacing, colors and position are hard-coded in `Program.cs`.
 - **Only tested with one taskbar configuration**: centered, bottom, Widgets disabled, primary monitor only. Not tested with a left-aligned taskbar, auto-hide, secondary monitors, different scaling or third-party taskbar tweaks that move the taskbar to the top or sides.
 - Occupancy updates can lag by up to one second.
 - Switching across several desktops plays the Windows switch animation once per step.
