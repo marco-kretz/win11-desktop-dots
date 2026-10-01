@@ -18,7 +18,7 @@ No test suite. Verify changes by running the app; screen captures via GDI `CopyF
 
 ## Constraints
 
-- Use only documented APIs. Do not use `IVirtualDesktopManagerInternal` or other undocumented shell COM interfaces; their GUIDs change between Windows builds.
+- Use only documented APIs. Do not use `IVirtualDesktopManagerInternal` or other undocumented shell COM interfaces; their GUIDs change between Windows builds. Sole exception: the uxtheme ordinals `#133`/`#135` for the dark context menu (stable since Windows 10 1903).
 - Desktop list/current desktop come from the registry key `HKCU\...\Explorer\VirtualDesktops`; switching is done by simulating `Ctrl+Win+Left/Right`.
 - The window is a layered child of `Shell_TrayWnd` and requires the Windows 8+ `supportedOS` entry in `app.manifest`.
 - Per-monitor DPI aware: sizes are in physical pixels scaled by `GetDpiForWindow(tray)`.

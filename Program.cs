@@ -13,6 +13,7 @@ static class Program
         using var mutex = new Mutex(true, "DesktopDots", out bool first);
         if (!first) return;
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        Native.SetPreferredAppMode(1); // AllowDark: native menus follow the system dark mode
 
         // An Explorer restart destroys our child window together with the taskbar; rebuild it on the new one.
         while (true)
@@ -211,20 +212,34 @@ sealed class Bar : NativeWindow
         Native.keybd_event(LWIN, 0, EXT | UP, 0);
     }
 
+    // Native Win32 menu instead of ContextMenuStrip: gets the Windows 11 look (rounded corners, dark mode).
     static void ShowMenu()
     {
+        const uint MF_CHECKED = 0x8, MF_SEPARATOR = 0x800, TPM_RIGHTBUTTON = 0x2, TPM_RETURNCMD = 0x100;
         using var run = Registry.CurrentUser.OpenSubKey(RunKey, true)!;
-        var menu = new ContextMenuStrip();
-        var autostart = new ToolStripMenuItem("Start with Windows") { Checked = run.GetValue("DesktopDots") != null };
-        autostart.Click += (_, _) =>
+        bool autostart = run.GetValue("DesktopDots") != null;
+        IntPtr menu = Native.CreatePopupMenu();
+        Native.AppendMenuW(menu, autostart ? MF_CHECKED : 0, 1, "Start with Windows");
+        Native.AppendMenuW(menu, MF_SEPARATOR, 0, null);
+        Native.AppendMenuW(menu, 0, 2, "Exit");
+
+        // Our bar is a no-activate child of Explorer's taskbar; a hidden top-level owner in our thread
+        // can take the foreground, which the menu needs to close when clicking elsewhere.
+        var owner = new NativeWindow();
+        owner.CreateHandle(new CreateParams());
+        Native.AllowDarkModeForWindow(owner.Handle, true);
+        Native.SetForegroundWindow(owner.Handle);
+        var pt = Cursor.Position;
+        int command = Native.TrackPopupMenuEx(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.X, pt.Y, owner.Handle, IntPtr.Zero);
+        Native.DestroyMenu(menu);
+        owner.DestroyHandle();
+
+        if (command == 1)
         {
-            using var k = Registry.CurrentUser.OpenSubKey(RunKey, true)!;
-            if (autostart.Checked) k.DeleteValue("DesktopDots");
-            else k.SetValue("DesktopDots", $"\"{Environment.ProcessPath}\"");
-        };
-        menu.Items.Add(autostart);
-        menu.Items.Add("Exit", null, (_, _) => Environment.Exit(0));
-        menu.Show(Cursor.Position);
+            if (autostart) run.DeleteValue("DesktopDots");
+            else run.SetValue("DesktopDots", $"\"{Environment.ProcessPath}\"");
+        }
+        else if (command == 2) Environment.Exit(0);
     }
 }
 
@@ -268,6 +283,14 @@ static class Native
     [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr dc, IntPtr obj);
     [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr obj);
     [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr dc);
+    [DllImport("user32.dll")] public static extern IntPtr CreatePopupMenu();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool AppendMenuW(IntPtr menu, uint flags, nint id, string? text);
+    [DllImport("user32.dll")] public static extern int TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr h, IntPtr tpm);
+    [DllImport("user32.dll")] public static extern bool DestroyMenu(IntPtr menu);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    // Undocumented uxtheme exports (by ordinal, stable since Windows 10 1903), used by Explorer, Notepad++ etc. for dark menus.
+    [DllImport("uxtheme.dll", EntryPoint = "#135")] public static extern int SetPreferredAppMode(int mode);
+    [DllImport("uxtheme.dll", EntryPoint = "#133")] public static extern bool AllowDarkModeForWindow(IntPtr h, bool allow);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int value, int size);
     [DllImport("advapi32.dll")]
     public static extern int RegNotifyChangeKeyValue(Microsoft.Win32.SafeHandles.SafeRegistryHandle key, bool subtree, int filter, IntPtr ev, bool async);
