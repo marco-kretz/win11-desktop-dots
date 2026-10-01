@@ -1,11 +1,4 @@
-# Build output
-bin/
-obj/
-publish/
-
 # IDE
 .vs/
 .vscode/
 .idea/
-*.user
-*.suo

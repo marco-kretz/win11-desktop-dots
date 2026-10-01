@@ -1,25 +1,20 @@
 # AGENTS.md
 
-Tiny WinForms (.NET 10) app that draws virtual desktop dots into the Windows 11 taskbar. See README.md for behavior.
+Windhawk mod (C++, runs in `explorer.exe`) that draws virtual desktop dots into the Windows 11 taskbar. See README.md for behavior.
 
 ## Layout
 
-Everything lives in `Program.cs`: `Program` (restart loop), `Bar` (window, data, rendering, input), COM interface, `Native` P/Invokes. Keep it a single file unless it grows substantially.
+Everything lives in `desktop-dots.wh.cpp`: Windhawk metadata/readme header, data (registry + `IVirtualDesktopManager`), rendering (GDI+), input, and a worker thread owning the window. Keep it a single file.
 
 ## Build and run
 
-```powershell
-Stop-Process -Name DesktopDots -ErrorAction Ignore   # single-instance mutex; stop before relaunching
-dotnet build -c Release
-.\bin\Release\net10.0-windows\DesktopDots.exe
-```
-
-No test suite. Verify changes by running the app; screen captures via GDI `CopyFromScreen` do not show the layered taskbar child, so ask the user to confirm visual results.
+Compiled by Windhawk: paste the file into a mod in the Windhawk editor and compile. No test suite. Screen captures via GDI `CopyFromScreen` do not show the layered taskbar child, so ask the user to confirm visual results.
 
 ## Constraints
 
-- Use only documented APIs. Do not use `IVirtualDesktopManagerInternal` or other undocumented shell COM interfaces; their GUIDs change between Windows builds. Sole exception: the uxtheme ordinals `#133`/`#135` for the dark context menu (stable since Windows 10 1903).
+- Use only documented APIs. Do not use `IVirtualDesktopManagerInternal` or other undocumented shell COM interfaces; their GUIDs change between Windows builds. Sole exception: the uxtheme ordinal `#133` (`AllowDarkModeForWindow`) for the dark context menu (stable since Windows 10 1903).
 - Desktop list/current desktop come from the registry key `HKCU\...\Explorer\VirtualDesktops`; switching is done by simulating `Ctrl+Win+Left/Right`.
-- The window is a layered child of `Shell_TrayWnd` and requires the Windows 8+ `supportedOS` entry in `app.manifest`.
+- The window is a layered child of `Shell_TrayWnd`.
+- `Wh_ModUninit` must stop the worker thread and destroy the window before the DLL unloads.
 - Per-monitor DPI aware: sizes are in physical pixels scaled by `GetDpiForWindow(tray)`.
 - Conventional Commits.

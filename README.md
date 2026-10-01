@@ -1,6 +1,6 @@
 # DesktopDots
 
-GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar.
+GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar, as a [Windhawk](https://windhawk.net/) mod.
 
 <p align="center"><img src="preview.gif" alt="DesktopDots preview"></p>
 
@@ -8,60 +8,36 @@ GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar.
 - **Hollow dot**: the desktop is empty
 - **Pill**: the active desktop (with a short animation when switching)
 
-Left-click a dot to switch to that desktop. Right-click opens a menu (start with Windows, hide trailing empty desktops, exit).
+Left-click a dot to switch to that desktop. Right-click toggles hiding trailing empty desktops.
 
 ## Requirements
 
 - Windows 11 with a centered taskbar and the Widgets button disabled (otherwise the dots overlap it)
-- .NET 10 SDK to build
+- [Windhawk](https://windhawk.net/)
 
-## Download
+## Install
 
-Grab one of these from the [latest release](https://github.com/marco-kretz/win11-desktop-dots/releases/latest):
-
-- `DesktopDots-<version>.exe` (~200 KB): requires the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
-- `DesktopDots-<version>-bundled.exe` (~50 MB): the .NET runtime is bundled into the exe, so no separate install is needed. Put it in a fixed location before enabling autostart.
-
-## Build and install
-
-```powershell
-dotnet publish -c Release -o $HOME\Tools\DesktopDots
-& $HOME\Tools\DesktopDots\DesktopDots.exe
-```
-
-Then enable "Start with Windows" via right-click. Autostart points to the path of the running `.exe`, so publish to a fixed location first.
+In Windhawk, choose *Create a new mod*, paste [`desktop-dots.wh.cpp`](desktop-dots.wh.cpp) and click *Compile*. The mod runs inside `explorer.exe`; enable or disable it in Windhawk.
 
 ## Recommended: instant desktop switching
 
-I highly recommend the [Disable Virtual Desktop Transition](https://windhawk.net/mods/disable-virtual-desktop-transition) mod for [Windhawk](https://windhawk.net/). It disables the Windows slide animation, so switching desktops (including by clicking a dot) is basically instant.
+I highly recommend the [Disable Virtual Desktop Transition](https://windhawk.net/mods/disable-virtual-desktop-transition) mod. It disables the Windows slide animation, so switching desktops (including by clicking a dot) is basically instant.
 
 ## How it works
 
-- The app attaches a transparent layered window as a child of the taskbar (`Shell_TrayWnd`). It moves with the taskbar and is visible on every desktop.
+- The mod attaches a transparent layered window as a child of the taskbar (`Shell_TrayWnd`). It moves with the taskbar and is visible on every desktop.
 - The desktop list and the active desktop are read from `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops`; changes are picked up immediately via `RegNotifyChangeKeyValue`.
 - Occupied desktops are determined once per second using `EnumWindows` and the public COM API `IVirtualDesktopManager`.
 - Clicking a dot simulates `Ctrl+Win+Left/Right`, since there is no public API for switching desktops.
-- After an Explorer restart, the app re-attaches itself automatically.
 
 Only documented APIs are used, no undocumented shell interfaces, so it should survive Windows updates.
-
-## Performance
-
-Measured on my machine while idle:
-
-- **CPU**: ~0.5 % of one core (47 ms of CPU time per 10 s). Switching desktops runs a ~200 ms animation at ~60 fps, then goes idle again.
-- **Memory**: ~19 MB private / ~56 MB working set, mostly the .NET runtime baseline.
-- **Explorer**: no noticeable impact; the app only enumerates top-level windows once per second.
-
-Possible improvements if it ever matters: only redraw when something actually changed (it currently redraws once per second), or publish with Native AOT to reduce memory and startup time (WinForms support for this is untested).
 
 ## Caveats
 
 - **Completely untested.** This is a private tool I built for my own setup. It works on my machine, and that's all I can say.
-- **No settings.** Size, spacing, colors and position are hard-coded in `Program.cs`.
+- **No settings.** Size, spacing, colors and position are hard-coded in `desktop-dots.wh.cpp`.
 - **Only tested with one taskbar configuration**: centered, bottom, Widgets disabled, primary monitor only. Not tested with a left-aligned taskbar, auto-hide, secondary monitors, different scaling or third-party taskbar tweaks that move the taskbar to the top or sides.
 - Occupancy updates can lag by up to one second.
-- Switching across several desktops plays the Windows switch animation once per step (the Windhawk mod above avoids this).
 
 Feel free to take it, change it and redistribute it.
 
