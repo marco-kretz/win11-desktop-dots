@@ -31,6 +31,7 @@ sealed class Bar : NativeWindow
 {
     const string VdKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops";
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    const string SettingsKey = @"HKEY_CURRENT_USER\Software\DesktopDots";
     const int WM_APP = 0x8000, WM_DESTROY = 0x2, WM_MOUSEACTIVATE = 0x21, WM_LBUTTONUP = 0x202, WM_RBUTTONUP = 0x205;
 
     readonly IntPtr tray;
@@ -40,6 +41,7 @@ sealed class Bar : NativeWindow
     Guid[] desktops = [];
     int current;
     HashSet<Guid> occupied = [];
+    bool hideEmpty = Registry.GetValue(SettingsKey, "HideEmpty", 0) is 1;
     float[] grow = []; // 0 = dot, 1 = pill, per desktop
     float[] slotEnds = [];
 
@@ -141,6 +143,9 @@ sealed class Bar : NativeWindow
         float s = Native.GetDpiForWindow(tray) / 96f;
         float dot = 8 * s, pill = 24 * s, gap = 8 * s, pad = 12 * s, pen = 1.5f * s;
         int n = desktops.Length;
+        // Only trailing empty desktops are hidden, so the remaining dots keep their positions.
+        if (hideEmpty) n = Math.Max(current, Array.FindLastIndex(desktops, occupied.Contains)) + 1;
+        n = Math.Max(n, 1);
         int w = (int)Math.Ceiling(pad * 2 + n * dot + (n - 1) * gap + (pill - dot));
         int h = tr.Bottom - tr.Top;
 
@@ -213,13 +218,14 @@ sealed class Bar : NativeWindow
     }
 
     // Native Win32 menu instead of ContextMenuStrip: gets the Windows 11 look (rounded corners, dark mode).
-    static void ShowMenu()
+    void ShowMenu()
     {
         const uint MF_CHECKED = 0x8, MF_SEPARATOR = 0x800, TPM_RIGHTBUTTON = 0x2, TPM_RETURNCMD = 0x100;
         using var run = Registry.CurrentUser.OpenSubKey(RunKey, true)!;
         bool autostart = run.GetValue("DesktopDots") != null;
         IntPtr menu = Native.CreatePopupMenu();
         Native.AppendMenuW(menu, autostart ? MF_CHECKED : 0, 1, "Start with Windows");
+        Native.AppendMenuW(menu, hideEmpty ? MF_CHECKED : 0, 3, "Hide trailing empty desktops");
         Native.AppendMenuW(menu, MF_SEPARATOR, 0, null);
         Native.AppendMenuW(menu, 0, 2, "Exit");
 
@@ -240,6 +246,12 @@ sealed class Bar : NativeWindow
             else run.SetValue("DesktopDots", $"\"{Environment.ProcessPath}\"");
         }
         else if (command == 2) Environment.Exit(0);
+        else if (command == 3)
+        {
+            hideEmpty = !hideEmpty;
+            Registry.SetValue(SettingsKey, "HideEmpty", hideEmpty ? 1 : 0);
+            Render();
+        }
     }
 }
 

@@ -8,7 +8,7 @@ GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar.
 - **Hollow dot**: the desktop is empty
 - **Pill**: the active desktop (with a short animation when switching)
 
-Left-click a dot to switch to that desktop. Right-click opens a menu (start with Windows, exit).
+Left-click a dot to switch to that desktop. Right-click opens a menu (start with Windows, hide trailing empty desktops, exit).
 
 ## Requirements
 
