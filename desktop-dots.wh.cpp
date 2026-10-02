@@ -2,7 +2,7 @@
 // @id              desktop-dots
 // @name            Desktop Dots
 // @description     GNOME-style virtual desktop indicator on the far left of the taskbar
-// @version         1.0
+// @version         1.1
 // @author          Marco Kretz
 // @github          https://github.com/marco-kretz
 // @homepage        https://github.com/marco-kretz/win11-desktop-dots
@@ -15,7 +15,7 @@
 /*
 # Desktop Dots
 
-GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar.
+GNOME-style virtual desktop indicator on the far left of the Windows 11 taskbar (optionally on every monitor).
 
 - **Filled dot**: at least one window is open on that desktop
 - **Hollow dot**: the desktop is empty
@@ -27,6 +27,14 @@ Requires a centered taskbar with the Widgets button disabled (otherwise the dots
 Pairs well with the *Disable Virtual Desktop Transition* mod for instant switching.
 */
 // ==/WindhawkModReadme==
+
+// ==WindhawkModSettings==
+/*
+- allMonitors: false
+  $name: Show on all monitors
+  $description: Also show the dots on the taskbars of secondary monitors
+*/
+// ==/WindhawkModSettings==
 
 #include <windows.h>
 #include <windowsx.h>
@@ -47,14 +55,19 @@ const UINT_PTR TIMER_REFRESH = 1, TIMER_ANIM = 2;
 const CLSID CLSID_VDM = {0xaa509086, 0x5ca9, 0x4c25, {0x8f, 0x95, 0x58, 0x9d, 0x3c, 0x07, 0xb4, 0x8a}};
 const IID IID_VDM = {0xa5cd92ff, 0x29be, 0x454c, {0x8d, 0x04, 0xd8, 0x28, 0x79, 0xfb, 0x3f, 0x1b}};
 
+struct Bar {
+    HWND tray, hwnd;
+    std::vector<float> slotEnds;
+};
+
 HANDLE g_stop, g_thread;
-HWND g_tray, g_hwnd;
+HWND g_hwnd;  // bar on the primary taskbar; owns the timers and the lifetime of RunBar
+std::vector<Bar> g_bars;
 IVirtualDesktopManager* g_vdm;
 std::vector<GUID> g_desktops, g_occupied;
 int g_current;
-bool g_hideEmpty;
+bool g_hideEmpty, g_allMonitors;
 std::vector<float> g_grow;  // 0 = dot, 1 = pill, per desktop
-std::vector<float> g_slotEnds;
 
 bool Contains(const std::vector<GUID>& v, const GUID& g) {
     return std::find(v.begin(), v.end(), g) != v.end();
@@ -92,27 +105,13 @@ void Capsule(Gdiplus::GraphicsPath& p, float x, float y, float w, float d) {
     p.CloseFigure();
 }
 
-void Render() {
+void RenderBar(Bar& b, int n, Gdiplus::Color color) {
     RECT tr;
-    GetWindowRect(g_tray, &tr);
-    float s = GetDpiForWindow(g_tray) / 96.f;
+    GetWindowRect(b.tray, &tr);
+    float s = GetDpiForWindow(b.tray) / 96.f;
     float dot = 8 * s, pill = 24 * s, gap = 8 * s, pad = 12 * s, pen = 1.5f * s;
-    int n = (int)g_desktops.size();
-    // Only trailing empty desktops are hidden, so the remaining dots keep their positions.
-    if (g_hideEmpty) {
-        int last = -1;
-        for (int i = 0; i < n; i++)
-            if (Contains(g_occupied, g_desktops[i])) last = i;
-        n = std::max(g_current, last) + 1;
-    }
-    n = std::max(n, 1);
     int w = (int)std::ceil(pad * 2 + n * dot + (n - 1) * gap + (pill - dot));
     int h = tr.bottom - tr.top;
-
-    DWORD light = 0, size = sizeof(light);
-    RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                 L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size);
-    Gdiplus::Color color = light == 1 ? Gdiplus::Color(230, 0, 0, 0) : Gdiplus::Color(230, 255, 255, 255);
 
     Gdiplus::Bitmap bmp(w, h, PixelFormat32bppARGB);
     {
@@ -121,7 +120,7 @@ void Render() {
         Gdiplus::Pen outline(color, pen);
         g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         g.Clear(Gdiplus::Color(1, 0, 0, 0));  // alpha 1 so clicks between dots still reach us
-        g_slotEnds.assign(n, 0);
+        b.slotEnds.assign(n, 0);
         float x = pad, y = (h - dot) / 2.f;
         for (int i = 0; i < n; i++) {
             float dw = dot + (pill - dot) * g_grow[i];
@@ -134,11 +133,11 @@ void Render() {
                 g.DrawPath(&outline, &path);
             }
             x += dw + gap;
-            g_slotEnds[i] = x - gap / 2;
+            b.slotEnds[i] = x - gap / 2;
         }
     }
 
-    SetWindowPos(g_hwnd, HWND_TOP, 0, 0, w, h, SWP_NOACTIVATE);
+    SetWindowPos(b.hwnd, HWND_TOP, 0, 0, w, h, SWP_NOACTIVATE);
     HDC screen = GetDC(nullptr);
     HDC mem = CreateCompatibleDC(screen);
     HBITMAP hbmp;
@@ -147,11 +146,31 @@ void Render() {
     SIZE sz{w, h};
     POINT src{0, 0};
     BLENDFUNCTION blend{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-    UpdateLayeredWindow(g_hwnd, screen, nullptr, &sz, mem, &src, 0, &blend, ULW_ALPHA);
+    UpdateLayeredWindow(b.hwnd, screen, nullptr, &sz, mem, &src, 0, &blend, ULW_ALPHA);
     SelectObject(mem, old);
     DeleteObject(hbmp);
     DeleteDC(mem);
     ReleaseDC(nullptr, screen);
+}
+
+void Render() {
+    int n = (int)g_desktops.size();
+    // Only trailing empty desktops are hidden, so the remaining dots keep their positions.
+    if (g_hideEmpty) {
+        int last = -1;
+        for (int i = 0; i < n; i++)
+            if (Contains(g_occupied, g_desktops[i])) last = i;
+        n = std::max(g_current, last) + 1;
+    }
+    n = std::max(n, 1);
+
+    DWORD light = 0, size = sizeof(light);
+    RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                 L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size);
+    Gdiplus::Color color = light == 1 ? Gdiplus::Color(230, 0, 0, 0) : Gdiplus::Color(230, 255, 255, 255);
+
+    for (Bar& b : g_bars)
+        if (b.hwnd) RenderBar(b, n, color);
 }
 
 // Ease every slot towards its target width; the total stays constant because the shrinking and growing slot move equally.
@@ -167,7 +186,29 @@ void Animate() {
     Render();
 }
 
+HWND CreateBar(HWND tray) {
+    HWND hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, ClassName, nullptr,
+                                WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, 0, 0, tray, nullptr,
+                                (HINSTANCE)&__ImageBase, nullptr);
+    if (hwnd) g_bars.push_back({tray, hwnd, {}});
+    return hwnd;
+}
+
+// Secondary taskbars come and go with monitors; our bars die with them (WM_DESTROY clears hwnd).
+void SyncSecondaryBars() {
+    g_bars.erase(std::remove_if(g_bars.begin(), g_bars.end(), [](const Bar& b) { return !b.hwnd; }), g_bars.end());
+    HWND tray = nullptr;
+    while ((tray = FindWindowExW(nullptr, tray, L"Shell_SecondaryTrayWnd", nullptr))) {
+        DWORD pid = 0;
+        GetWindowThreadProcessId(tray, &pid);
+        if (pid == GetCurrentProcessId() &&
+            std::none_of(g_bars.begin(), g_bars.end(), [&](const Bar& b) { return b.tray == tray; }))
+            CreateBar(tray);
+    }
+}
+
 void Refresh() {
+    if (g_allMonitors) SyncSecondaryBars();
     auto ids = ReadBinary(L"VirtualDesktopIDs");
     g_desktops.assign((const GUID*)ids.data(), (const GUID*)ids.data() + ids.size() / sizeof(GUID));
     auto cur = ReadBinary(L"CurrentVirtualDesktop");
@@ -191,9 +232,11 @@ void Refresh() {
     Animate();
 }
 
-int HitTest(int x) {
-    for (size_t i = 0; i < g_slotEnds.size(); i++)
-        if (x < g_slotEnds[i]) return (int)i;
+int HitTest(HWND h, int x) {
+    for (const Bar& b : g_bars)
+        if (b.hwnd == h)
+            for (size_t i = 0; i < b.slotEnds.size(); i++)
+                if (x < b.slotEnds[i]) return (int)i;
     return -1;
 }
 
@@ -243,20 +286,21 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_TIMER: wp == TIMER_REFRESH ? Refresh() : Animate(); return 0;
         case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
-        case WM_LBUTTONUP: SwitchTo(HitTest(GET_X_LPARAM(lp))); return 0;
+        case WM_LBUTTONUP: SwitchTo(HitTest(h, GET_X_LPARAM(lp))); return 0;
         case WM_RBUTTONUP: ShowMenu(); return 0;
-        case WM_DESTROY: g_hwnd = nullptr; return 0;
+        case WM_DESTROY:
+            if (h == g_hwnd) g_hwnd = nullptr;
+            for (Bar& b : g_bars)
+                if (b.hwnd == h) b.hwnd = nullptr;
+            return 0;
     }
     return DefWindowProcW(h, msg, wp, lp);
 }
 
 void RunBar(HWND tray) {
     if (CoCreateInstance(CLSID_VDM, nullptr, CLSCTX_ALL, IID_VDM, (void**)&g_vdm) != S_OK) return;
-    g_tray = tray;
     g_grow.clear();
-    g_hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, ClassName, nullptr,
-                             WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, 0, 0, tray, nullptr,
-                             (HINSTANCE)&__ImageBase, nullptr);
+    g_hwnd = CreateBar(tray);
     if (g_hwnd) {
         HKEY key;
         if (RegOpenKeyExW(HKEY_CURRENT_USER, VdKey, 0, KEY_NOTIFY, &key) != ERROR_SUCCESS) key = nullptr;
@@ -290,6 +334,9 @@ void RunBar(HWND tray) {
         if (key) RegCloseKey(key);
         CloseHandle(changed);
     }
+    for (const Bar& b : g_bars)
+        if (b.hwnd) DestroyWindow(b.hwnd);
+    g_bars.clear();
     g_vdm->Release();
     g_vdm = nullptr;
 }
@@ -324,6 +371,7 @@ DWORD WINAPI BarThread(void*) {
 
 BOOL Wh_ModInit() {
     g_hideEmpty = Wh_GetIntValue(L"HideEmpty", 0);
+    g_allMonitors = Wh_GetIntSetting(L"allMonitors");
     g_stop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     g_thread = CreateThread(nullptr, 0, BarThread, nullptr, 0, nullptr);
     return TRUE;
@@ -334,4 +382,9 @@ void Wh_ModUninit() {
     WaitForSingleObject(g_thread, INFINITE);
     CloseHandle(g_thread);
     CloseHandle(g_stop);
+}
+
+BOOL Wh_ModSettingsChanged(BOOL* bReload) {
+    *bReload = TRUE;
+    return TRUE;
 }
